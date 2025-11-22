@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import 'pages/landing_page.dart';
 import 'pages/network_dashboard_page.dart';
-import 'pages/chat_page.dart';
 import 'pages/resource_page.dart';
 import 'pages/profile_page.dart';
+import 'providers/beacon_provider.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const BeaconApp());
 }
 
@@ -15,24 +18,24 @@ class BeaconApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'BEACON',
-      theme: ThemeData(
-        // Using a red color scheme to represent emergency/disaster response
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.red,
-          brightness: Brightness.light,
+    return ChangeNotifierProvider(
+      create: (_) => BeaconProvider()..initialize(),
+      child: MaterialApp(
+        title: 'BEACON',
+        theme: ThemeData(
+          // Using a red color scheme to represent emergency/disaster response
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.red,
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+          // Custom app bar theme for consistent styling
+          appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
         ),
-        useMaterial3: true,
-        // Custom app bar theme for consistent styling
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 2,
-        ),
+        // Start with the landing page
+        home: const LandingPage(),
+        debugShowCheckedModeBanner: false,
       ),
-      // Start with the landing page
-      home: const LandingPage(),
-      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -79,10 +82,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             icon: Icon(Icons.inventory),
             label: 'Resources',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         // Use red theme to match emergency/disaster response theme
         selectedItemColor: Colors.red,
