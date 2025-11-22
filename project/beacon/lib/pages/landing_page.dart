@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 
-/// Landing pag - the first screen users see when opening the app
+/// Landing  - the first screen users see when opening the app
 /// Provides two main options: Join existing emergency communication or start new one
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
@@ -13,10 +13,7 @@ class LandingPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'BEACON',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
         ),
         backgroundColor: Colors.red,
         foregroundColor: Colors.white,
@@ -42,13 +39,9 @@ class LandingPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // App logo/icon section
-                const Icon(
-                  Icons.emergency,
-                  size: 80,
-                  color: Colors.red,
-                ),
+                const Icon(Icons.emergency, size: 80, color: Colors.red),
                 const SizedBox(height: 20),
-                
+
                 // App title and description
                 const Text(
                   'BEACON',
@@ -60,7 +53,7 @@ class LandingPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                
+
                 const Text(
                   'Disaster Response Communication',
                   textAlign: TextAlign.center,
@@ -71,7 +64,7 @@ class LandingPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 40),
-                
+
                 // Main action buttons
                 _buildActionButton(
                   context: context,
@@ -81,7 +74,7 @@ class LandingPage extends StatelessWidget {
                   onPressed: () => _navigateToDashboard(context),
                 ),
                 const SizedBox(height: 20),
-                
+
                 _buildActionButton(
                   context: context,
                   title: 'Start New Communication',
@@ -90,7 +83,7 @@ class LandingPage extends StatelessWidget {
                   onPressed: () => _navigateToDashboard(context),
                 ),
                 const SizedBox(height: 40),
-                
+
                 // Additional info text
                 const Text(
                   'Stay connected during emergencies',
@@ -119,9 +112,7 @@ class LandingPage extends StatelessWidget {
   }) {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(12),
@@ -133,17 +124,13 @@ class LandingPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  icon,
-                  color: Colors.red,
-                  size: 28,
-                ),
+                child: Icon(icon, color: Colors.red, size: 28),
               ),
               const SizedBox(width: 16),
-              
+
               // Text content
               Expanded(
                 child: Column(
@@ -160,21 +147,14 @@ class LandingPage extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                   ],
                 ),
               ),
-              
+
               // Arrow icon
-              const Icon(
-                Icons.arrow_forward_ios,
-                color: Colors.grey,
-                size: 16,
-              ),
+              const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
             ],
           ),
         ),
@@ -186,9 +166,7 @@ class LandingPage extends StatelessWidget {
   void _navigateToDashboard(BuildContext context) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => const MainNavigationPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const MainNavigationPage()),
     );
   }
 }
