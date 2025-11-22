@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../data/models.dart';
+import '../providers/beacon_provider.dart';
 import 'chat_page.dart';
 
-/// Network Dashboard Pag - shows connected devices and provides communication options
+/// Network  Page - shows connected devices and provides communication options
 /// This is the main hub where users can see who's connected and start communications
 class NetworkDashboardPage extends StatefulWidget {
   const NetworkDashboardPage({super.key});
@@ -11,47 +15,11 @@ class NetworkDashboardPage extends StatefulWidget {
 }
 
 class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
-  // Mock data for connected devices
-  final List<ConnectedDevice> _connectedDevices = [
-    ConnectedDevice(
-      name: 'Emergency Team Alpha',
-      status: 'Active',
-      lastSeen: '2 min ago',
-      signalStrength: 4,
-      isEmergency: true,
-    ),
-    ConnectedDevice(
-      name: 'Rescue Unit Bravo',
-      status: 'Active',
-      lastSeen: '5 min ago',
-      signalStrength: 3,
-      isEmergency: true,
-    ),
-    ConnectedDevice(
-      name: 'Medical Team Charlie',
-      status: 'Active',
-      lastSeen: '1 min ago',
-      signalStrength: 5,
-      isEmergency: true,
-    ),
-    ConnectedDevice(
-      name: 'Civilian Group Delta',
-      status: 'Active',
-      lastSeen: '3 min ago',
-      signalStrength: 2,
-      isEmergency: false,
-    ),
-    ConnectedDevice(
-      name: 'Volunteer Team Echo',
-      status: 'Standby',
-      lastSeen: '10 min ago',
-      signalStrength: 1,
-      isEmergency: false,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final beaconProvider = context.watch<BeaconProvider>();
+    final devices = beaconProvider.connectedDevices;
+
     return Scaffold(
       // App bar with dashboard title and voice command button
       appBar: AppBar(
@@ -69,14 +37,14 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
           ),
         ],
       ),
-      
+
       body: Column(
         children: [
           // Network status header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withValues(alpha: 0.1),
             child: Column(
               children: [
                 const Text(
@@ -88,17 +56,22 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '${_connectedDevices.length} devices connected',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
+                beaconProvider.isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: CircularProgressIndicator(),
+                      )
+                    : Text(
+                        '${devices.length} devices connected',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
               ],
             ),
           ),
-          
+
           // Action buttons section
           Padding(
             padding: const EdgeInsets.all(16),
@@ -132,17 +105,22 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
               ],
             ),
           ),
-          
+
           // Connected devices list
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _connectedDevices.length,
-              itemBuilder: (context, index) {
-                final device = _connectedDevices[index];
-                return _buildDeviceCard(device);
-              },
-            ),
+            child: beaconProvider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: () => context.read<BeaconProvider>().refresh(),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: devices.length,
+                      itemBuilder: (context, index) {
+                        final device = devices[index];
+                        return _buildDeviceCard(device);
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -170,7 +148,7 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Status: ${device.status}'),
-            Text('Last seen: ${device.lastSeen}'),
+            Text('Last seen: ${_formatLastSeen(device.lastSeen)}'),
           ],
         ),
         trailing: Column(
@@ -187,7 +165,7 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
                   decoration: BoxDecoration(
                     color: i < device.signalStrength
                         ? Colors.green
-                        : Colors.grey.withOpacity(0.3),
+                        : Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(1),
                   ),
                 );
@@ -230,9 +208,13 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
             itemBuilder: (context, index) {
               return ListTile(
                 title: Text(predefinedMessages[index]),
-                onTap: () {
+                onTap: () async {
+                  final beaconProvider = context.read<BeaconProvider>();
+                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(context);
-                  _showMessageSentDialog(context, predefinedMessages[index]);
+                  final message = predefinedMessages[index];
+                  await beaconProvider.sendQuickMessage('broadcast', message);
+                  _showMessageSentDialog(messenger, message);
                 },
               );
             },
@@ -249,8 +231,11 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
   }
 
   /// Shows message sent confirmation
-  void _showMessageSentDialog(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+  void _showMessageSentDialog(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
+    messenger.showSnackBar(
       SnackBar(
         content: Text('Message sent: "$message"'),
         backgroundColor: Colors.green,
@@ -283,26 +268,15 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
   void _navigateToChat(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const ChatPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const ChatPage()),
     );
   }
-}
 
-/// Data model for connected devices
-class ConnectedDevice {
-  final String name;
-  final String status;
-  final String lastSeen;
-  final int signalStrength; // 1-5 scale
-  final bool isEmergency; // true for emergency teams, false for civilians
-
-  ConnectedDevice({
-    required this.name,
-    required this.status,
-    required this.lastSeen,
-    required this.signalStrength,
-    required this.isEmergency,
-  });
+  String _formatLastSeen(DateTime timestamp) {
+    final difference = DateTime.now().difference(timestamp);
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+    if (difference.inHours < 24) return '${difference.inHours} hrs ago';
+    return '${difference.inDays} days ago';
+  }
 }
