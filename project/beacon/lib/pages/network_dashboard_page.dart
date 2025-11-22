@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'chat_page.dart';
 
-/// Network Dashboard Page - shows connected devices and provides communication options
+/// Network Dashboard Pag - shows connected devices and provides communication options
 /// This is the main hub where users can see who's connected and start communications
 class NetworkDashboardPage extends StatefulWidget {
   const NetworkDashboardPage({super.key});
