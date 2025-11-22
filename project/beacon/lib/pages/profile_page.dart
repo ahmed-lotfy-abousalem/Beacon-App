@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../data/models.dart';
+import '../providers/beacon_provider.dart';
 
 /// Profile Page - User profile management and emergency contact setup
 /// Allows users to view and edit their profile information and emergency contacts
@@ -10,13 +14,6 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // Mock user data
-  final String _userName = 'John Doe';
-  final String _userEmail = 'john.doe@example.com';
-  final String _userPhone = '+1 (555) 123-4567';
-  final String _userLocation = 'Emergency Zone Alpha';
-  final String _userRole = 'Civilian';
-  
   // Mock emergency contacts
   final List<EmergencyContact> _emergencyContacts = [
     EmergencyContact(
@@ -41,6 +38,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final beaconProvider = context.watch<BeaconProvider>();
+    final profile = beaconProvider.userProfile;
+    final userName = profile?.name ?? 'Unknown Operator';
+    final userPhone = profile?.phone ?? 'Not set';
+    final userLocation = profile?.location ?? 'Not set';
+    final userRole = profile?.role ?? 'Civilian';
+
     return Scaffold(
       // App bar with profile title and voice command button
       appBar: AppBar(
@@ -56,28 +60,36 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-      
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Profile header section
-            _buildProfileHeader(),
+            _buildProfileHeader(
+              name: userName,
+              role: userRole,
+              onEdit: () => _editProfile(profile),
+            ),
             const SizedBox(height: 24),
-            
+
             // Personal information section
-            _buildPersonalInfoSection(),
+            _buildPersonalInfoSection(
+              name: userName,
+              phone: userPhone,
+              location: userLocation,
+            ),
             const SizedBox(height: 24),
-            
+
             // Emergency contacts section
             _buildEmergencyContactsSection(),
             const SizedBox(height: 24),
-            
+
             // Emergency settings section
             _buildEmergencySettingsSection(),
             const SizedBox(height: 24),
-            
+
             // App settings section
             _buildAppSettingsSection(),
           ],
@@ -87,7 +99,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   /// Builds the profile header with user avatar and basic info
-  Widget _buildProfileHeader() {
+  Widget _buildProfileHeader({
+    required String name,
+    required String role,
+    required VoidCallback onEdit,
+  }) {
     return Card(
       elevation: 4,
       child: Padding(
@@ -99,7 +115,12 @@ class _ProfilePageState extends State<ProfilePage> {
               radius: 40,
               backgroundColor: Colors.red,
               child: Text(
-                _userName.split(' ').map((name) => name[0]).join(''),
+                name.isEmpty
+                    ? '?'
+                    : name
+                          .split(' ')
+                          .map((part) => part.isNotEmpty ? part[0] : '')
+                          .join(),
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -108,26 +129,23 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // User name and role
             Text(
-              _userName,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              name,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            
+
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.3)),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
               ),
               child: Text(
-                _userRole,
+                role,
                 style: const TextStyle(
                   color: Colors.red,
                   fontWeight: FontWeight.w500,
@@ -135,10 +153,10 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Edit profile button
             ElevatedButton.icon(
-              onPressed: _editProfile,
+              onPressed: onEdit,
               icon: const Icon(Icons.edit),
               label: const Text('Edit Profile'),
               style: ElevatedButton.styleFrom(
@@ -153,7 +171,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   /// Builds the personal information section
-  Widget _buildPersonalInfoSection() {
+  Widget _buildPersonalInfoSection({
+    required String name,
+    required String phone,
+    required String location,
+  }) {
     return Card(
       elevation: 2,
       child: Padding(
@@ -163,17 +185,13 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             const Text(
               'Personal Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
-            _buildInfoRow(Icons.person, 'Name', _userName),
-            _buildInfoRow(Icons.email, 'Email', _userEmail),
-            _buildInfoRow(Icons.phone, 'Phone', _userPhone),
-            _buildInfoRow(Icons.location_on, 'Location', _userLocation),
+
+            _buildInfoRow(Icons.person, 'Name', name),
+            _buildInfoRow(Icons.phone, 'Phone', phone),
+            _buildInfoRow(Icons.location_on, 'Location', location),
           ],
         ),
       ),
@@ -194,10 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 const Text(
                   'Emergency Contacts',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 TextButton.icon(
                   onPressed: _addEmergencyContact,
@@ -207,7 +222,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // List of emergency contacts
             ..._emergencyContacts.map((contact) => _buildContactCard(contact)),
           ],
@@ -227,13 +242,10 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             const Text(
               'Emergency Settings',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             _buildSettingSwitch(
               'Auto-share location during emergencies',
               true,
@@ -244,11 +256,7 @@ class _ProfilePageState extends State<ProfilePage> {
               true,
               Icons.notifications,
             ),
-            _buildSettingSwitch(
-              'Enable voice commands',
-              false,
-              Icons.mic,
-            ),
+            _buildSettingSwitch('Enable voice commands', false, Icons.mic),
             _buildSettingSwitch(
               'Share medical information with responders',
               false,
@@ -271,13 +279,10 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             const Text(
               'App Settings',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             ListTile(
               leading: const Icon(Icons.notifications),
               title: const Text('Notifications'),
@@ -320,15 +325,9 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Icon(icon, color: Colors.grey[600], size: 20),
           const SizedBox(width: 12),
-          Text(
-            '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500)),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: Colors.grey),
-            ),
+            child: Text(value, style: const TextStyle(color: Colors.grey)),
           ),
         ],
       ),
@@ -339,7 +338,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildContactCard(EmergencyContact contact) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: contact.isPrimary ? Colors.red.withOpacity(0.1) : null,
+      color: contact.isPrimary ? Colors.red.withValues(alpha: 0.1) : null,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: contact.isPrimary ? Colors.red : Colors.blue,
@@ -357,10 +356,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(contact.relationship),
-            Text(contact.phone),
-          ],
+          children: [Text(contact.relationship), Text(contact.phone)],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -410,7 +406,24 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   /// Shows edit profile dialog
-  void _editProfile() {
+  void _editProfile(UserProfile? profile) {
+    final baseProfile =
+        profile ??
+        UserProfile(
+          name: '',
+          role: 'Civilian',
+          phone: '',
+          location: '',
+          updatedAt: DateTime.now(),
+        );
+
+    final nameController = TextEditingController(text: baseProfile.name);
+    final roleController = TextEditingController(text: baseProfile.role);
+    final phoneController = TextEditingController(text: baseProfile.phone);
+    final locationController = TextEditingController(
+      text: baseProfile.location,
+    );
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -420,19 +433,19 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             TextField(
               decoration: const InputDecoration(labelText: 'Name'),
-              controller: TextEditingController(text: _userName),
-            ),
-            TextField(
-              decoration: const InputDecoration(labelText: 'Email'),
-              controller: TextEditingController(text: _userEmail),
+              controller: nameController,
             ),
             TextField(
               decoration: const InputDecoration(labelText: 'Phone'),
-              controller: TextEditingController(text: _userPhone),
+              controller: phoneController,
             ),
             TextField(
               decoration: const InputDecoration(labelText: 'Location'),
-              controller: TextEditingController(text: _userLocation),
+              controller: locationController,
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: 'Role'),
+              controller: roleController,
             ),
           ],
         ),
@@ -444,6 +457,14 @@ class _ProfilePageState extends State<ProfilePage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
+              final updatedProfile = baseProfile.copyWith(
+                name: nameController.text,
+                role: roleController.text,
+                phone: phoneController.text,
+                location: locationController.text,
+                updatedAt: DateTime.now(),
+              );
+              context.read<BeaconProvider>().saveProfile(updatedProfile);
               _showSuccessMessage('Profile updated successfully!');
             },
             child: const Text('Save'),
@@ -462,9 +483,7 @@ class _ProfilePageState extends State<ProfilePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
+            TextField(decoration: const InputDecoration(labelText: 'Name')),
             TextField(
               decoration: const InputDecoration(labelText: 'Relationship'),
             ),
@@ -555,19 +574,31 @@ class _ProfilePageState extends State<ProfilePage> {
 
   /// Shows various settings dialogs (placeholder implementations)
   void _showNotificationSettings() {
-    _showPlaceholderDialog('Notification Settings', 'Manage your notification preferences here.');
+    _showPlaceholderDialog(
+      'Notification Settings',
+      'Manage your notification preferences here.',
+    );
   }
 
   void _showPrivacySettings() {
-    _showPlaceholderDialog('Privacy & Security', 'Manage your privacy and security settings here.');
+    _showPlaceholderDialog(
+      'Privacy & Security',
+      'Manage your privacy and security settings here.',
+    );
   }
 
   void _showHelpSupport() {
-    _showPlaceholderDialog('Help & Support', 'Get help and contact support here.');
+    _showPlaceholderDialog(
+      'Help & Support',
+      'Get help and contact support here.',
+    );
   }
 
   void _showAboutApp() {
-    _showPlaceholderDialog('About BEACON', 'BEACON v1.0.0\nDisaster Response Communication App');
+    _showPlaceholderDialog(
+      'About BEACON',
+      'BEACON v1.0.0\nDisaster Response Communication App',
+    );
   }
 
   /// Shows a placeholder dialog for settings
