@@ -12,7 +12,7 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   // Text editing controller for the message input field
   final TextEditingController _messageController = TextEditingController();
-  
+
   // List to store chat messages (mock data)
   final List<ChatMessage> _messages = [
     ChatMessage(
@@ -76,7 +76,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ],
       ),
-      
+
       body: Column(
         children: [
           // Chat messages list
@@ -90,15 +90,13 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
           ),
-          
+
           // Message input area
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.grey[100],
-              border: Border(
-                top: BorderSide(color: Colors.grey[300]!),
-              ),
+              border: Border(top: BorderSide(color: Colors.grey[300]!)),
             ),
             child: Row(
               children: [
@@ -119,7 +117,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                
+
                 // Send button
                 FloatingActionButton(
                   onPressed: _sendMessage,
@@ -154,29 +152,24 @@ class _ChatPageState extends State<ChatPage> {
                   ? Colors.orange
                   : Colors.blue,
               child: Icon(
-                message.isSystemMessage
-                    ? Icons.info
-                    : Icons.person,
+                message.isSystemMessage ? Icons.info : Icons.person,
                 size: 16,
                 color: Colors.white,
               ),
             ),
             const SizedBox(width: 8),
           ],
-          
+
           // Message bubble
           Flexible(
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: message.isFromCurrentUser
                     ? Colors.red
                     : message.isSystemMessage
-                        ? Colors.orange.withOpacity(0.1)
-                        : Colors.grey[200],
+                    ? Colors.orange.withValues(alpha: 0.1)
+                    : Colors.grey[200],
                 borderRadius: BorderRadius.circular(18),
                 border: message.isSystemMessage
                     ? Border.all(color: Colors.orange, width: 1)
@@ -219,18 +212,14 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
           ),
-          
+
           if (message.isFromCurrentUser) ...[
             const SizedBox(width: 8),
             // Avatar for current user
             const CircleAvatar(
               radius: 16,
               backgroundColor: Colors.red,
-              child: Icon(
-                Icons.person,
-                size: 16,
-                color: Colors.white,
-              ),
+              child: Icon(Icons.person, size: 16, color: Colors.white),
             ),
           ],
         ],
@@ -254,7 +243,7 @@ class _ChatPageState extends State<ChatPage> {
         );
       });
       _messageController.clear();
-      
+
       // Simulate receiving a response after a short delay
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
@@ -278,7 +267,7 @@ class _ChatPageState extends State<ChatPage> {
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
-    
+
     if (difference.inMinutes < 1) {
       return 'Just now';
     } else if (difference.inMinutes < 60) {
