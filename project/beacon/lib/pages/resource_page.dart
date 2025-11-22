@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Resource Page - Shows resource sharing options for emergency situations
+/// Resource  - Shows resource sharing options for emergency situations
 /// Allows users to share and request essential resources like medical supplies, shelter, and food
 class ResourcePage extends StatefulWidget {
   const ResourcePage({super.key});
@@ -79,14 +79,14 @@ class _ResourcePageState extends State<ResourcePage> {
           ),
         ],
       ),
-      
+
       body: Column(
         children: [
           // Header section with emergency info
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withValues(alpha: 0.1),
             child: Column(
               children: [
                 const Text(
@@ -101,15 +101,12 @@ class _ResourcePageState extends State<ResourcePage> {
                 const Text(
                   'Share and request essential resources during emergencies',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],
             ),
           ),
-          
+
           // Quick action buttons
           Padding(
             padding: const EdgeInsets.all(16),
@@ -143,7 +140,7 @@ class _ResourcePageState extends State<ResourcePage> {
               ],
             ),
           ),
-          
+
           // Resources list
           Expanded(
             child: ListView.builder(
@@ -176,14 +173,10 @@ class _ResourcePageState extends State<ResourcePage> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: resource.color.withOpacity(0.1),
+                    color: resource.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    resource.icon,
-                    color: resource.color,
-                    size: 24,
-                  ),
+                  child: Icon(resource.icon, color: resource.color, size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -209,9 +202,9 @@ class _ResourcePageState extends State<ResourcePage> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Resource statistics
             Row(
               children: [
@@ -234,9 +227,9 @@ class _ResourcePageState extends State<ResourcePage> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Action buttons
             Row(
               children: [
@@ -272,13 +265,18 @@ class _ResourcePageState extends State<ResourcePage> {
   }
 
   /// Builds a small stat card for displaying numbers
-  Widget _buildStatCard(String label, String value, Color color, IconData icon) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -292,13 +290,7 @@ class _ResourcePageState extends State<ResourcePage> {
               color: color,
             ),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-            ),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: color)),
         ],
       ),
     );
@@ -313,7 +305,9 @@ class _ResourcePageState extends State<ResourcePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('How many ${resource.name.toLowerCase()} do you want to share?'),
+            Text(
+              'How many ${resource.name.toLowerCase()} do you want to share?',
+            ),
             const SizedBox(height: 16),
             TextField(
               keyboardType: TextInputType.number,
