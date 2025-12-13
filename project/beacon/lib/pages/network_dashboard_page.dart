@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 
 import '../data/models.dart';
 import '../providers/beacon_provider.dart';
+import '../services/wifi_direct_service.dart' show WiFiDirectService, WiFiDirectEvent;
+import '../services/messaging_service.dart';
 import 'chat_page.dart';
 
-/// Network  Page - shows connected devices and provides communication options
+/// Network Dashboard Page - shows connected devices and provides communication options
 /// This is the main hub where users can see who's connected and start communications
 class NetworkDashboardPage extends StatefulWidget {
   const NetworkDashboardPage({super.key});
@@ -15,6 +18,46 @@ class NetworkDashboardPage extends StatefulWidget {
 }
 
 class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
+  late final WiFiDirectService _wifiDirectService;
+  late final MessagingService _messagingService;
+  StreamSubscription<WiFiDirectEvent>? _socketEventSubscription;
+  bool _isSocketConnected = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _wifiDirectService = WiFiDirectService();
+    _messagingService = MessagingService();
+    _messagingService.initialize();
+    _initializeSocketMonitoring();
+  }
+  
+  void _initializeSocketMonitoring() {
+    // Check initial socket state
+    _isSocketConnected = _wifiDirectService.isSocketConnected;
+    
+    // Listen for socket connection events
+    _socketEventSubscription = _wifiDirectService.eventStream.listen((event) {
+      if (mounted) {
+        if (event.type == 'socketConnected') {
+          setState(() {
+            _isSocketConnected = true;
+          });
+        } else if (event.type == 'socketDisconnected') {
+          setState(() {
+            _isSocketConnected = false;
+          });
+        }
+      }
+    });
+  }
+  
+  @override
+  void dispose() {
+    _socketEventSubscription?.cancel();
+    super.dispose();
+  }
+  
   @override
   Widget build(BuildContext context) {
     final beaconProvider = context.watch<BeaconProvider>();
@@ -61,12 +104,50 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
                         padding: EdgeInsets.only(top: 8.0),
                         child: CircularProgressIndicator(),
                       )
-                    : Text(
-                        '${devices.length} devices connected',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
+                    : Column(
+                        children: [
+                          Text(
+                            '${devices.length} devices connected',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Socket status indicator
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _isSocketConnected
+                                  ? Colors.green.withValues(alpha: 0.15)
+                                  : Colors.orange.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: _isSocketConnected ? Colors.green : Colors.orange,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isSocketConnected ? Icons.check_circle : Icons.pending,
+                                  size: 16,
+                                  color: _isSocketConnected ? Colors.green : Colors.orange,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _isSocketConnected ? 'Messaging Ready' : 'Connecting...',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isSocketConnected ? Colors.green.shade700 : Colors.orange.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
               ],
             ),
@@ -207,14 +288,30 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
             itemCount: predefinedMessages.length,
             itemBuilder: (context, index) {
               return ListTile(
+                leading: const Icon(Icons.send, color: Colors.red),
                 title: Text(predefinedMessages[index]),
                 onTap: () async {
-                  final beaconProvider = context.read<BeaconProvider>();
+                  print('Predefined message selected: ${predefinedMessages[index]}');
                   final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(context);
-                  final message = predefinedMessages[index];
-                  await beaconProvider.sendQuickMessage('broadcast', message);
-                  _showMessageSentDialog(messenger, message);
+                  final message = '⚠️ ' + predefinedMessages[index];
+                  
+                  print('Sending predefined message: $message');
+                  // Send via WiFi Direct
+                  final success = await _messagingService.sendMessage(message);
+                  
+                  print('Predefined message send result: $success');
+                  if (success) {
+                    _showMessageSentDialog(messenger, message);
+                  } else {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Failed to send. Check WiFi Direct connection.'),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
                 },
               );
             },

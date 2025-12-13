@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 
-/// Landing  - the first screen users see when opening the app
+/// Landing page - the first screen users see when opening the app
 /// Provides two main options: Join existing emergency communication or start new one
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});

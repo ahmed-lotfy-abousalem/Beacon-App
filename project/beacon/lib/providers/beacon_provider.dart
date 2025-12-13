@@ -117,7 +117,10 @@ class BeaconProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _handlePeerUpdate(List<ConnectedDevice> peers) async {
     if (_isDatabaseLocked) return;
 
-    for (final peer in peers) {
+    // Create a copy of the peers list to avoid concurrent modification
+    final peersCopy = peers.toList();
+    
+    for (final peer in peersCopy) {
       await _database.upsertDevice(peer);
       await _database.logActivity(
         NetworkActivity(

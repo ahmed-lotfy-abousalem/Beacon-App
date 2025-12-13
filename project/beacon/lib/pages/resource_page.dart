@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/messaging_service.dart';
 
-/// Resource  - Shows resource sharing options for emergency situations
+/// Resource Page - Shows resource sharing options for emergency situations
 /// Allows users to share and request essential resources like medical supplies, shelter, and food
 class ResourcePage extends StatefulWidget {
   const ResourcePage({super.key});
@@ -10,6 +11,25 @@ class ResourcePage extends StatefulWidget {
 }
 
 class _ResourcePageState extends State<ResourcePage> {
+  final MessagingService _messagingService = MessagingService();
+  final TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _urgencyController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    _messagingService.initialize();
+  }
+  
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    _locationController.dispose();
+    _urgencyController.dispose();
+    super.dispose();
+  }
+  
   // Mock data for available resources
   final List<ResourceItem> _availableResources = [
     ResourceItem(
@@ -298,6 +318,9 @@ class _ResourcePageState extends State<ResourcePage> {
 
   /// Shows dialog for sharing a resource
   void _shareResource(ResourceItem resource) {
+    _quantityController.clear();
+    _locationController.clear();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -310,17 +333,21 @@ class _ResourcePageState extends State<ResourcePage> {
             ),
             const SizedBox(height: 16),
             TextField(
+              controller: _quantityController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Quantity',
                 border: OutlineInputBorder(),
+                hintText: 'e.g., 5',
               ),
             ),
             const SizedBox(height: 16),
             TextField(
+              controller: _locationController,
               decoration: const InputDecoration(
                 labelText: 'Location (optional)',
                 border: OutlineInputBorder(),
+                hintText: 'e.g., Street 123',
               ),
             ),
           ],
@@ -331,9 +358,27 @@ class _ResourcePageState extends State<ResourcePage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final quantity = _quantityController.text.trim();
+              if (quantity.isEmpty) {
+                _showErrorMessage('Please enter quantity');
+                return;
+              }
+              
+              final location = _locationController.text.trim();
+              final locationText = location.isNotEmpty ? ' at $location' : '';
+              final message = '📦 RESOURCE SHARE: ${resource.name} - Quantity: $quantity$locationText';
+              
+              print('Sharing resource: $message');
               Navigator.pop(context);
-              _showSuccessMessage('Resource shared successfully!');
+              final success = await _messagingService.sendMessage(message);
+              
+              print('Resource share send result: $success');
+              if (success) {
+                _showSuccessMessage('Resource shared successfully!');
+              } else {
+                _showErrorMessage('Failed to send. Check WiFi Direct connection.');
+              }
             },
             child: const Text('Share'),
           ),
@@ -344,6 +389,10 @@ class _ResourcePageState extends State<ResourcePage> {
 
   /// Shows dialog for requesting a resource
   void _requestResource(ResourceItem resource) {
+    _quantityController.clear();
+    _locationController.clear();
+    _urgencyController.clear();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -354,24 +403,30 @@ class _ResourcePageState extends State<ResourcePage> {
             Text('How many ${resource.name.toLowerCase()} do you need?'),
             const SizedBox(height: 16),
             TextField(
+              controller: _quantityController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Quantity Needed',
                 border: OutlineInputBorder(),
+                hintText: 'e.g., 10',
               ),
             ),
             const SizedBox(height: 16),
             TextField(
+              controller: _locationController,
               decoration: const InputDecoration(
                 labelText: 'Your Location',
                 border: OutlineInputBorder(),
+                hintText: 'e.g., Building A, Floor 3',
               ),
             ),
             const SizedBox(height: 16),
             TextField(
+              controller: _urgencyController,
               decoration: const InputDecoration(
                 labelText: 'Urgency Level',
                 border: OutlineInputBorder(),
+                hintText: 'Low/Medium/High/Critical',
               ),
             ),
           ],
@@ -382,9 +437,29 @@ class _ResourcePageState extends State<ResourcePage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final quantity = _quantityController.text.trim();
+              final location = _locationController.text.trim();
+              final urgency = _urgencyController.text.trim();
+              
+              if (quantity.isEmpty || location.isEmpty) {
+                _showErrorMessage('Please fill quantity and location');
+                return;
+              }
+              
+              final urgencyText = urgency.isNotEmpty ? ' - URGENCY: $urgency' : '';
+              final message = '🆘 RESOURCE REQUEST: ${resource.name} - Qty: $quantity - Location: $location$urgencyText';
+              
+              print('Requesting resource: $message');
               Navigator.pop(context);
-              _showSuccessMessage('Resource request sent!');
+              final success = await _messagingService.sendMessage(message);
+              
+              print('Resource request send result: $success');
+              if (success) {
+                _showSuccessMessage('Resource request sent!');
+              } else {
+                _showErrorMessage('Failed to send. Check WiFi Direct connection.');
+              }
             },
             child: const Text('Request'),
           ),
@@ -475,6 +550,17 @@ class _ResourcePageState extends State<ResourcePage> {
         content: Text(message),
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+  
+  /// Shows error message
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
       ),
     );
   }

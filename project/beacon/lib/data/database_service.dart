@@ -4,7 +4,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
-import 'package:uuid/uuid.dart';
 
 import 'models.dart';
 
@@ -160,28 +159,7 @@ class DatabaseService {
       ).toMap(),
     );
 
-    final mockDevices = [
-      ConnectedDevice(
-        peerId: const Uuid().v4(),
-        name: 'Emergency Team Alpha',
-        status: 'Active',
-        lastSeen: now.subtract(const Duration(minutes: 2)),
-        signalStrength: 4,
-        isEmergency: true,
-      ),
-      ConnectedDevice(
-        peerId: const Uuid().v4(),
-        name: 'Civilian Group Delta',
-        status: 'Active',
-        lastSeen: now.subtract(const Duration(minutes: 3)),
-        signalStrength: 2,
-        isEmergency: false,
-      ),
-    ];
-
-    for (final device in mockDevices) {
-      await db.insert(BeaconTables.connectedDevices, device.toMap());
-    }
+    // No mock devices - only real WiFi Direct discovered devices will be shown
   }
 
   Future<String> _obtainOrCreatePassphrase() async {

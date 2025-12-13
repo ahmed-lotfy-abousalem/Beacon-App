@@ -14,6 +14,8 @@ import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -21,10 +23,17 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.PrintWriter
+import kotlinx.coroutines.*
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.beacon/wifi_direct"
     private var methodChannel: MethodChannel? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
     
     private var manager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
@@ -53,6 +62,16 @@ class MainActivity : FlutterActivity() {
     private var discoveredPeers = mutableListOf<WifiP2pDevice>()
     private var connectedDevice: WifiP2pDevice? = null
     private var groupOwnerAddress: InetAddress? = null
+    private var isGroupOwner = false
+    
+    // Socket communication
+    private val SERVER_PORT = 8888
+    private var serverSocket: ServerSocket? = null
+    private var clientSocket: Socket? = null
+    private var serverJob: Job? = null
+    private var clientReaderJob: Job? = null
+    private var printWriter: PrintWriter? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -85,6 +104,28 @@ class MainActivity : FlutterActivity() {
                 }
                 "isWifiDirectSupported" -> {
                     result.success(isWifiDirectSupported())
+                }
+                "startSocketServer" -> {
+                    startSocketServer(result)
+                }
+                "connectToSocket" -> {
+                    val address = call.argument<String>("address")
+                    if (address != null) {
+                        connectToSocket(address, result)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Address is required", null)
+                    }
+                }
+                "sendMessage" -> {
+                    val message = call.argument<String>("message")
+                    if (message != null) {
+                        sendMessage(message, result)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Message is required", null)
+                    }
+                }
+                "stopSocketCommunication" -> {
+                    stopSocketCommunication(result)
                 }
                 else -> {
                     result.notImplemented()
@@ -150,13 +191,46 @@ class MainActivity : FlutterActivity() {
                             
                             if (networkInfo?.isConnected == true && wifiP2pInfo != null) {
                                 groupOwnerAddress = wifiP2pInfo.groupOwnerAddress
-                                sendEventToFlutter("connectionChanged", mapOf(
-                                    "connected" to true,
+                                isGroupOwner = wifiP2pInfo.isGroupOwner
+                                
+                                // Request connection info to get peer device details
+                                manager?.requestConnectionInfo(channel) { info ->
+                                    sendEventToFlutter("connectionChanged", mapOf(
+                                        "connected" to true,
+                                        "isGroupOwner" to info.isGroupOwner,
+                                        "groupOwnerAddress" to (info.groupOwnerAddress?.hostAddress ?: ""),
+                                        "peerDeviceAddress" to (connectedDevice?.deviceAddress ?: "")
+                                    ))
+                                }
+                                
+                                // Also send connection info event
+                                sendEventToFlutter("connectionInfo", mapOf(
                                     "isGroupOwner" to wifiP2pInfo.isGroupOwner,
                                     "groupOwnerAddress" to (wifiP2pInfo.groupOwnerAddress?.hostAddress ?: "")
                                 ))
+                                
+                                // Request peers to update their connection status
+                                requestPeers()
+                                
+                                // Start socket communication after a short delay to ensure network is ready
+                                scope.launch {
+                                    delay(1000) // Wait 1 second for network to be ready
+                                    if (isGroupOwner) {
+                                        // Group owner starts server
+                                        startSocketServer(null)
+                                    } else {
+                                        // Client connects to group owner
+                                        val goAddress = wifiP2pInfo.groupOwnerAddress?.hostAddress
+                                        if (goAddress != null) {
+                                            connectToSocket(goAddress, null)
+                                        }
+                                    }
+                                }
                             } else {
+                                stopSocketCommunication(null)
                                 sendEventToFlutter("connectionChanged", mapOf("connected" to false))
+                                // Request peers after disconnection to update their status
+                                requestPeers()
                             }
                         }
                         WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
@@ -333,7 +407,180 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun sendEventToFlutter(event: String, data: Map<String, Any>) {
-        methodChannel?.invokeMethod("onEvent", mapOf("event" to event, "data" to data))
+        mainHandler.post {
+            methodChannel?.invokeMethod("onEvent", mapOf("event" to event, "data" to data))
+        }
+    }
+
+    private fun startSocketServer(result: MethodChannel.Result?) {
+        if (serverSocket != null) {
+            Log.d("WiFiDirect", "Socket server already running, sending connected event")
+            sendEventToFlutter("socketConnected", emptyMap())
+            result?.success(true)
+            return
+        }
+        
+        serverJob = scope.launch {
+            try {
+                serverSocket = ServerSocket(SERVER_PORT)
+                Log.d("WiFiDirect", "Socket server started on port $SERVER_PORT")
+                sendEventToFlutter("socketConnected", emptyMap())
+                result?.success(true)
+                
+                while (serverSocket != null && !serverSocket!!.isClosed) {
+                    try {
+                        val client = serverSocket!!.accept()
+                        Log.d("WiFiDirect", "Client connected: ${client.remoteSocketAddress}")
+                        
+                        // Handle client connection
+                        launch {
+                            handleClientConnection(client)
+                        }
+                    } catch (e: Exception) {
+                        if (!serverSocket!!.isClosed) {
+                            Log.e("WiFiDirect", "Error accepting client", e)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("WiFiDirect", "Error starting socket server", e)
+                sendEventToFlutter("socketDisconnected", emptyMap())
+                result?.error("SERVER_ERROR", e.message, null)
+            }
+        }
+    }
+
+    private fun handleClientConnection(client: Socket) {
+        try {
+            val reader = BufferedReader(InputStreamReader(client.getInputStream()))
+            val writer = PrintWriter(client.getOutputStream(), true)
+            
+            // Store writer for sending messages
+            printWriter = writer
+            
+            // Read messages from client
+            clientReaderJob = scope.launch {
+                try {
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        line?.let { message ->
+                            Log.d("WiFiDirect", "Received message: $message")
+                            sendEventToFlutter("messageReceived", mapOf(
+                                "message" to message,
+                                "sender" to client.remoteSocketAddress.toString()
+                            ))
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("WiFiDirect", "Error reading from client", e)
+                } finally {
+                    client.close()
+                    printWriter = null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("WiFiDirect", "Error handling client connection", e)
+            client.close()
+        }
+    }
+
+    private fun connectToSocket(address: String, result: MethodChannel.Result?) {
+        if (clientSocket != null && clientSocket!!.isConnected) {
+            Log.d("WiFiDirect", "Client socket already connected, sending connected event")
+            sendEventToFlutter("socketConnected", emptyMap())
+            result?.success(true)
+            return
+        }
+        
+        scope.launch {
+            try {
+                Log.d("WiFiDirect", "Attempting to connect to $address:$SERVER_PORT")
+                clientSocket = Socket(address, SERVER_PORT)
+                val writer = PrintWriter(clientSocket!!.getOutputStream(), true)
+                val reader = BufferedReader(InputStreamReader(clientSocket!!.getInputStream()))
+                
+                printWriter = writer
+                Log.d("WiFiDirect", "Connected to server at $address:$SERVER_PORT")
+                sendEventToFlutter("socketConnected", emptyMap())
+                result?.success(true)
+                
+                // Read messages from server
+                clientReaderJob = launch {
+                    try {
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            line?.let { message ->
+                                Log.d("WiFiDirect", "Received message: $message")
+                                sendEventToFlutter("messageReceived", mapOf(
+                                    "message" to message,
+                                    "sender" to address
+                                ))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("WiFiDirect", "Error reading from server", e)
+                    } finally {
+                        clientSocket?.close()
+                        clientSocket = null
+                        printWriter = null
+                        withContext(Dispatchers.Main) {
+                            sendEventToFlutter("socketDisconnected", emptyMap())
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("WiFiDirect", "Error connecting to socket", e)
+                withContext(Dispatchers.Main) {
+                    sendEventToFlutter("socketDisconnected", emptyMap())
+                }
+                result?.error("CONNECTION_ERROR", e.message, null)
+            }
+        }
+    }
+
+    private fun sendMessage(message: String, result: MethodChannel.Result?) {
+        scope.launch {
+            try {
+                val writer = printWriter
+                if (writer != null) {
+                    writer.println(message)
+                    writer.flush()
+                    Log.d("WiFiDirect", "Message sent: $message")
+                    result?.success(true)
+                } else {
+                    Log.e("WiFiDirect", "Writer is null, socket not connected")
+                    result?.error("NOT_CONNECTED", "Socket not connected", null)
+                }
+            } catch (e: Exception) {
+                Log.e("WiFiDirect", "Error sending message", e)
+                result?.error("SEND_ERROR", e.message, null)
+            }
+        }
+    }
+
+    private fun stopSocketCommunication(result: MethodChannel.Result?) {
+        scope.launch {
+            try {
+                serverJob?.cancel()
+                clientReaderJob?.cancel()
+                
+                printWriter?.close()
+                printWriter = null
+                
+                serverSocket?.close()
+                serverSocket = null
+                
+                clientSocket?.close()
+                clientSocket = null
+                
+                Log.d("WiFiDirect", "Socket communication stopped")
+                sendEventToFlutter("socketDisconnected", emptyMap())
+                result?.success(true)
+            } catch (e: Exception) {
+                Log.e("WiFiDirect", "Error stopping socket communication", e)
+                result?.error("STOP_ERROR", e.message, null)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -345,5 +592,7 @@ class MainActivity : FlutterActivity() {
                 Log.e("WiFiDirect", "Error unregistering receiver", e)
             }
         }
+        stopSocketCommunication(null)
+        scope.cancel()
     }
 }
