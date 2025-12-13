@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/database_service.dart';
 import '../data/models.dart';
+import '../services/notification_service.dart';
 import '../services/p2p_service.dart';
 
 /// Central state holder that wires together the encrypted database,
@@ -15,6 +16,7 @@ class BeaconProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   final DatabaseService _database = DatabaseService.instance;
   final P2PService _p2pService = P2PService();
+  final NotificationService _notificationService = NotificationService();
 
   StreamSubscription<List<ConnectedDevice>>? _peerSubscription;
 
@@ -117,10 +119,14 @@ class BeaconProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _handlePeerUpdate(List<ConnectedDevice> peers) async {
     if (_isDatabaseLocked) return;
 
-    // Create a copy of the peers list to avoid concurrent modification
-    final peersCopy = peers.toList();
-    
-    for (final peer in peersCopy) {
+    final existingPeerIds = _connectedDevices.map((e) => e.peerId).toSet();
+    for (final peer in peers) {
+      if (!existingPeerIds.contains(peer.peerId)) {
+        await _notificationService.showNotification(
+          'New Peer Joined',
+          '${peer.name} has joined the network',
+        );
+      }
       await _database.upsertDevice(peer);
       await _database.logActivity(
         NetworkActivity(
