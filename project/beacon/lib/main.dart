@@ -6,11 +6,9 @@ import 'pages/network_dashboard_page.dart';
 import 'pages/resource_page.dart';
 import 'pages/profile_page.dart';
 import 'providers/beacon_provider.dart';
-import 'services/notification_service.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService().init();
   runApp(const BeaconApp());
 }
 
