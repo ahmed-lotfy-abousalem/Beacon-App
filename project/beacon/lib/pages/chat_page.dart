@@ -3,6 +3,7 @@ import 'dart:async';
 import '../services/messaging_service.dart' show MessagingService, ChatMessage;
 import '../services/wifi_direct_service.dart' show WiFiDirectService, WiFiDirectEvent;
 import '../services/speech_to_text_service.dart';
+import '../services/text_to_speech_service.dart';
 
 /// Chat Page - Simple messaging interface for emergency communications
 /// Allows users to send and receive messages in real-time during emergencies
@@ -19,12 +20,15 @@ class _ChatPageState extends State<ChatPage> {
   late final MessagingService _messagingService;
   late final WiFiDirectService _wifiDirectService;
   late final SpeechToTextService _speechToTextService;
+  late final TextToSpeechService _textToSpeechService;
   
   StreamSubscription<ChatMessage>? _messageSubscription;
   StreamSubscription<WiFiDirectEvent>? _socketEventSubscription;
   bool _isConnected = false;
   bool _isSocketConnected = false;
   bool _isSpeechListening = false;
+  bool _isTTSSpeaking = false;
+  String _currentSpeakingMessageId = '';
 
   @override
   void initState() {
@@ -32,8 +36,10 @@ class _ChatPageState extends State<ChatPage> {
     _messagingService = MessagingService();
     _wifiDirectService = WiFiDirectService();
     _speechToTextService = SpeechToTextService();
+    _textToSpeechService = TextToSpeechService();
     _initializeMessaging();
     _initializeSpeechToText();
+    _initializeTextToSpeech();
   }
 
   Future<void> _initializeMessaging() async {
@@ -118,6 +124,35 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  /// Initialize text-to-speech service
+  Future<void> _initializeTextToSpeech() async {
+    try {
+      await _textToSpeechService.initialize();
+      
+      // Set up callbacks
+      _textToSpeechService.setOnSpeakingStatusChanged((isSpeaking) {
+        if (mounted) {
+          setState(() {
+            _isTTSSpeaking = isSpeaking;
+          });
+        }
+      });
+      
+      _textToSpeechService.setOnError((error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Text-to-speech error: $error'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      print('Error initializing text-to-speech: $e');
+    }
+  }
+
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -127,6 +162,7 @@ class _ChatPageState extends State<ChatPage> {
     _messageSubscription?.cancel();
     _socketEventSubscription?.cancel();
     _speechToTextService.dispose();
+    _textToSpeechService.dispose();
     // Don't dispose singleton service, just cancel subscriptions
     _scrollController.dispose();
     super.dispose();
@@ -347,54 +383,77 @@ class _ChatPageState extends State<ChatPage> {
 
           // Message bubble
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: message.isFromCurrentUser
-                    ? Colors.red
-                    : message.senderId == 'system'
-                    ? Colors.orange.withValues(alpha: 0.1)
-                    : userColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(18),
-                border: message.senderId == 'system'
-                    ? Border.all(color: Colors.orange, width: 1)
-                    : Border.all(color: userColor.withValues(alpha: 0.3), width: 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!message.isFromCurrentUser && message.senderId != 'system')
-                    Text(
-                      message.senderName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: userColor,
+            child: Column(
+              crossAxisAlignment: message.isFromCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: message.isFromCurrentUser
+                        ? Colors.red
+                        : message.senderId == 'system'
+                        ? Colors.orange.withValues(alpha: 0.1)
+                        : userColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(18),
+                    border: message.senderId == 'system'
+                        ? Border.all(color: Colors.orange, width: 1)
+                        : Border.all(color: userColor.withValues(alpha: 0.3), width: 1),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!message.isFromCurrentUser && message.senderId != 'system')
+                        Text(
+                          message.senderName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: userColor,
+                          ),
+                        ),
+                      if (!message.isFromCurrentUser && message.senderId != 'system')
+                        const SizedBox(height: 2),
+                      Text(
+                        message.text,
+                        style: TextStyle(
+                          color: message.isFromCurrentUser
+                              ? Colors.white
+                              : Colors.black87,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
-                  if (!message.isFromCurrentUser && message.senderId != 'system')
-                    const SizedBox(height: 2),
-                  Text(
-                    message.text,
-                    style: TextStyle(
-                      color: message.isFromCurrentUser
-                          ? Colors.white
-                          : Colors.black87,
-                      fontSize: 16,
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTimestamp(message.timestamp),
+                        style: TextStyle(
+                          color: message.isFromCurrentUser
+                              ? Colors.white70
+                              : Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatTimestamp(message.timestamp),
-                    style: TextStyle(
-                      color: message.isFromCurrentUser
-                          ? Colors.white70
-                          : Colors.grey[600],
-                      fontSize: 12,
+                ),
+                const SizedBox(height: 6),
+                // Text-to-Speech button
+                SizedBox(
+                  height: 28,
+                  child: IconButton(
+                    onPressed: () => _speakMessage(message),
+                    icon: Icon(
+                      _isTTSSpeaking && _currentSpeakingMessageId == message.text
+                          ? Icons.pause_circle
+                          : Icons.volume_up,
+                      size: 18,
                     ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    color: message.isFromCurrentUser ? Colors.red : userColor,
+                    tooltip: 'Play text-to-speech',
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
@@ -410,6 +469,34 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+
+  /// Speaks a message using text-to-speech
+  Future<void> _speakMessage(ChatMessage message) async {
+    try {
+      if (_isTTSSpeaking && _currentSpeakingMessageId == message.text) {
+        // Stop if currently speaking this message
+        await _textToSpeechService.stop();
+        setState(() {
+          _currentSpeakingMessageId = '';
+        });
+      } else {
+        // Start speaking the message
+        setState(() {
+          _currentSpeakingMessageId = message.text;
+        });
+        await _textToSpeechService.speak(message.text);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error playing message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// Sends a new message
