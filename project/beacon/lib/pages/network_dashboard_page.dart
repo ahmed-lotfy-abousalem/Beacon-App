@@ -294,7 +294,7 @@ class _NetworkDashboardPageState extends State<NetworkDashboardPage> {
                   print('Predefined message selected: ${predefinedMessages[index]}');
                   final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(context);
-                  final message = '⚠️ ' + predefinedMessages[index];
+                  final message = '⚠️ ${predefinedMessages[index]}';
                   
                   print('Sending predefined message: $message');
                   // Send via WiFi Direct
