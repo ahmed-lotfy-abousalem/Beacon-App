@@ -6,6 +6,7 @@ import 'pages/network_dashboard_page.dart';
 import 'pages/resource_page.dart';
 import 'pages/profile_page.dart';
 import 'providers/beacon_provider.dart';
+import 'presentation/viewmodels/peer_notification_view_model.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,8 +19,15 @@ class BeaconApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => BeaconProvider()..initialize(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => BeaconProvider()..initialize(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PeerNotificationViewModel()..initialize(),
+        ),
+      ],
       child: MaterialApp(
         title: 'BEACON',
         theme: ThemeData(
@@ -33,11 +41,67 @@ class BeaconApp extends StatelessWidget {
           appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
         ),
         // Start with the landing page
-        home: const LandingPage(),
+        home: const _NotificationListener(child: LandingPage()),
         debugShowCheckedModeBanner: false,
       ),
     );
   }
+}
+
+/// Wrapper widget to listen for peer notifications globally
+class _NotificationListener extends StatefulWidget {
+  final Widget child;
+
+  const _NotificationListener({required this.child});
+
+  @override
+  State<_NotificationListener> createState() => _NotificationListenerState();
+}
+
+class _NotificationListenerState extends State<_NotificationListener> {
+  late PeerNotificationViewModel _notificationViewModel;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    print('🌐 _NotificationListener.didChangeDependencies() called');
+    _notificationViewModel =
+        Provider.of<PeerNotificationViewModel>(context, listen: false);
+
+    print('✅ Got PeerNotificationViewModel: ${_notificationViewModel.hashCode}');
+
+    // Set up the callback to show snackbars
+    _notificationViewModel.onPeerJoined = (device) {
+      print('🔔 _NotificationListener.onPeerJoined callback triggered: ${device.name}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${device.name} has joined the network'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        print('✅ Global: Showed snackbar for peer joined: ${device.name}');
+      }
+    };
+
+    _notificationViewModel.onPeerLeft = (device) {
+      print('🔔 _NotificationListener.onPeerLeft callback triggered: ${device.name}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${device.name} has left the network'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        print('✅ Global: Showed snackbar for peer left: ${device.name}');
+      }
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Main navigation widget that handles bottom navigation between main sections

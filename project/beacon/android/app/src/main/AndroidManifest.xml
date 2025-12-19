@@ -10,6 +10,9 @@
     <!-- Speech-to-Text Permissions -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     
+    <!-- Notification Permission (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
     <!-- WiFi Direct Feature (optional - app will check at runtime) -->
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
     

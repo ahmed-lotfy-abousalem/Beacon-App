@@ -3,12 +3,26 @@ import 'dart:async';
 import '../data/models.dart';
 import 'wifi_direct_service.dart';
 
+/// Event for peer join/leave notifications
+class PeerEvent {
+  final String type; // 'joined' or 'left'
+  final ConnectedDevice device;
+  final DateTime timestamp;
+
+  PeerEvent({
+    required this.type,
+    required this.device,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+}
+
 /// Peer-to-peer service that uses WiFi Direct for device discovery and communication.
 /// This service integrates with the native WiFi Direct implementation to discover
 /// and connect to nearby devices without requiring internet connectivity.
 class P2PService {
   final WiFiDirectService _wifiDirectService = WiFiDirectService();
   final _peersController = StreamController<List<ConnectedDevice>>.broadcast();
+  final _peerEventController = StreamController<PeerEvent>.broadcast();
 
   StreamSubscription<WiFiDirectEvent>? _eventSubscription;
   List<ConnectedDevice> _currentPeers = [];
@@ -17,6 +31,7 @@ class P2PService {
   bool _isConnected = false;
 
   Stream<List<ConnectedDevice>> get peersStream => _peersController.stream;
+  Stream<PeerEvent> get peerEventStream => _peerEventController.stream;
 
   bool get isDiscovering => _wifiDirectService.isDiscovering;
 
@@ -182,9 +197,42 @@ class P2PService {
         );
       }
     }
+
+    // Detect peer joins and leaves
+    _detectPeerChanges(_currentPeers, discoveredPeers);
     
     _currentPeers = discoveredPeers;
     _peersController.add(_currentPeers);
+  }
+
+  /// Detect which peers joined and which left
+  void _detectPeerChanges(
+    List<ConnectedDevice> oldPeers,
+    List<ConnectedDevice> newPeers,
+  ) {
+    // Find new peers (joined)
+    for (final newPeer in newPeers) {
+      final found = oldPeers.any((p) => p.peerId == newPeer.peerId);
+      if (!found) {
+        print('Peer joined: ${newPeer.name} (${newPeer.peerId})');
+        _peerEventController.add(PeerEvent(
+          type: 'joined',
+          device: newPeer,
+        ));
+      }
+    }
+
+    // Find removed peers (left)
+    for (final oldPeer in oldPeers) {
+      final found = newPeers.any((p) => p.peerId == oldPeer.peerId);
+      if (!found) {
+        print('Peer left: ${oldPeer.name} (${oldPeer.peerId})');
+        _peerEventController.add(PeerEvent(
+          type: 'left',
+          device: oldPeer,
+        ));
+      }
+    }
   }
 
   /// Handle connection state changes
@@ -343,5 +391,6 @@ class P2PService {
     await stopDiscovery();
     await _wifiDirectService.dispose();
     await _peersController.close();
+    await _peerEventController.close();
   }
 }

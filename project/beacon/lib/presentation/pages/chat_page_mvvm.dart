@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/messaging_service.dart';
-import '../base_view_model.dart';
 import '../viewmodels/chat_view_model.dart';
+import '../viewmodels/peer_notification_view_model.dart';
 
 /// MVVM Refactored Chat Page
 /// 
 /// This is a simplified, clean version of the chat page using MVVM architecture.
 /// All business logic is moved to ChatViewModel, leaving the UI layer clean.
+/// Integrates peer notifications for join/leave events.
 /// 
 /// Benefits:
 /// - Easy to test (ViewModel logic is separate from UI)
@@ -24,14 +25,18 @@ class ChatPageMVVM extends StatefulWidget {
 
 class _ChatPageMVVMState extends State<ChatPageMVVM> {
   late ChatViewModel _viewModel;
+  late PeerNotificationViewModel _peerNotificationViewModel;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _viewModel = ChatViewModel();
+    _peerNotificationViewModel = PeerNotificationViewModel();
     
-    // Set error callback
+    print('🚀 ChatPageMVVM initState: Initializing ViewModels');
+    
+    // Set error callback for chat view model
     _viewModel.onError = (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,13 +48,45 @@ class _ChatPageMVVMState extends State<ChatPageMVVM> {
         );
       }
     };
+
+    // Set callbacks for peer notification view model
+    _peerNotificationViewModel.onPeerJoined = (device) {
+      print('✅ ChatPageMVVM: onPeerJoined callback triggered for ${device.name}');
+      if (mounted) {
+        _showPeerNotification(
+          'Peer Joined',
+          '${device.name} has joined the network',
+          Icons.login,
+          Colors.green,
+        );
+      }
+    };
+
+    _peerNotificationViewModel.onPeerLeft = (device) {
+      print('❌ ChatPageMVVM: onPeerLeft callback triggered for ${device.name}');
+      if (mounted) {
+        _showPeerNotification(
+          'Peer Left',
+          '${device.name} has left the network',
+          Icons.logout,
+          Colors.red,
+        );
+      }
+    };
     
-    // Initialize the ViewModel
+    // Initialize both ViewModels
+    print('📱 ChatPageMVVM: Initializing ChatViewModel');
     _viewModel.initialize().then((_) {
       if (mounted) {
-        // Scroll to bottom after initialization
         _scrollToBottom();
       }
+    });
+
+    print('📡 ChatPageMVVM: Initializing PeerNotificationViewModel');
+    _peerNotificationViewModel.initialize().then((_) {
+      print('✅ ChatPageMVVM: PeerNotificationViewModel initialized');
+    }).catchError((error) {
+      print('❌ ChatPageMVVM: Error initializing PeerNotificationViewModel: $error');
     });
   }
 
@@ -57,6 +94,7 @@ class _ChatPageMVVMState extends State<ChatPageMVVM> {
   void dispose() {
     _scrollController.dispose();
     _viewModel.dispose();
+    _peerNotificationViewModel.dispose();
     super.dispose();
   }
 
@@ -72,42 +110,104 @@ class _ChatPageMVVMState extends State<ChatPageMVVM> {
     });
   }
 
+  /// Show peer notification in a styled snackbar
+  void _showPeerNotification(
+    String title,
+    String message,
+    IconData icon,
+    Color color,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    message,
+                    style: const TextStyle(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<ChatViewModel>.value(
       value: _viewModel,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Emergency Chat'),
-          backgroundColor: Colors.red,
-          foregroundColor: Colors.white,
-          actions: [
-            IconButton(
-              onPressed: _showVoiceCommandDialog,
-              icon: const Icon(Icons.mic),
-              tooltip: 'Voice Command',
+      child: ChangeNotifierProvider<PeerNotificationViewModel>.value(
+        value: _peerNotificationViewModel,
+        child: Scaffold(
+          appBar: AppBar(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Emergency Chat'),
+                Consumer<PeerNotificationViewModel>(
+                  builder: (context, peerViewModel, _) {
+                    return Text(
+                      peerViewModel.peersDisplayText,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.normal,
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            // Socket connection status indicator
-            _buildConnectionStatusBar(),
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            actions: [
+              IconButton(
+                onPressed: _showVoiceCommandDialog,
+                icon: const Icon(Icons.mic),
+                tooltip: 'Voice Command',
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              // Socket connection status indicator
+              _buildConnectionStatusBar(),
 
-            // Chat messages list
-            Expanded(
-              child: Consumer<ChatViewModel>(
-                builder: (context, viewModel, _) {
-                  if (viewModel.isLoading && viewModel.messages.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              // Chat messages list
+              Expanded(
+                child: Consumer<ChatViewModel>(
+                  builder: (context, viewModel, _) {
+                    if (viewModel.isLoading && viewModel.messages.isEmpty) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                  if (viewModel.messages.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
+                    if (viewModel.messages.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
                             viewModel.isSocketConnected
                                 ? Icons.check_circle
                                 : Icons.pending,
@@ -141,9 +241,10 @@ class _ChatPageMVVMState extends State<ChatPageMVVM> {
               ),
             ),
 
-            // Message input area
-            _buildMessageInputArea(),
-          ],
+              // Message input area
+              _buildMessageInputArea(),
+            ],
+          ),
         ),
       ),
     );

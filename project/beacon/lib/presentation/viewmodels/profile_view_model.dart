@@ -21,7 +21,7 @@ class ProfileViewModel extends BaseViewModel {
   
   // Form controllers
   final nameController = TextEditingController();
-  final bioController = TextEditingController();
+  final roleController = TextEditingController();
   
   // Getters
   UserProfile? get userProfile => _userProfile;
@@ -54,12 +54,15 @@ class ProfileViewModel extends BaseViewModel {
       _userProfile = UserProfile(
         id: 1,
         name: 'Your Name',
-        bio: 'Your Bio',
+        role: 'User',
+        phone: '',
+        location: '',
+        updatedAt: DateTime.now(),
       );
       
       // Populate form fields
       nameController.text = _userProfile?.name ?? '';
-      bioController.text = _userProfile?.bio ?? '';
+      roleController.text = _userProfile?.role ?? '';
       
       notifyListeners();
     } catch (e) {
@@ -73,7 +76,7 @@ class ProfileViewModel extends BaseViewModel {
     if (!_isEditing) {
       // Reset form if cancelled
       nameController.text = _userProfile?.name ?? '';
-      bioController.text = _userProfile?.bio ?? '';
+      roleController.text = _userProfile?.role ?? '';
       _validationError = null;
     }
     notifyListeners();
@@ -112,7 +115,10 @@ class ProfileViewModel extends BaseViewModel {
       final updatedProfile = UserProfile(
         id: _userProfile?.id ?? 1,
         name: nameController.text.trim(),
-        bio: bioController.text.trim(),
+        role: roleController.text.trim(),
+        phone: _userProfile?.phone ?? '',
+        location: _userProfile?.location ?? '',
+        updatedAt: DateTime.now(),
       );
       
       // Save to database (in a real app, use repository)
@@ -142,22 +148,19 @@ class ProfileViewModel extends BaseViewModel {
     notifyListeners();
   }
   
-  void updateBio(String bio) {
-    bioController.text = bio;
+  void updateRole(String role) {
+    roleController.text = role;
     notifyListeners();
   }
   
-  /// Get user's device ID
-  String get deviceId => _p2pService.deviceId;
-  
   /// Get list of connected devices
-  List<ConnectedDevice> get connectedDevices => _p2pService.discoveredPeers;
+  Stream<List<ConnectedDevice>> get peersStream => _p2pService.peersStream;
   
   /// Dispose
   @override
   void dispose() {
     nameController.dispose();
-    bioController.dispose();
+    roleController.dispose();
     super.dispose();
   }
 }
