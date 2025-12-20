@@ -146,6 +146,11 @@ class NetworkActivity {
     required this.timestamp,
   });
 
+  // Compatibility getters for test code
+  String get type => event;
+  String get description => details;
+  String get activityType => event;
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
