@@ -63,11 +63,44 @@ Write-Host "[RUN] Launching Beacon app..."
 Write-Host "────────────────────────────────────────────────────────"
 Write-Host ""
 
-# Run the app with flags to skip P2P features
-flutter run --no-fast-start
+# Start the app in background
+$appProcess = Start-Process -NoNewWindow -PassThru powershell -ArgumentList "-NoProfile", "-Command", "flutter run --no-fast-start"
 
-Write-Host ""
-Write-Host "────────────────────────────────────────────────────────"
+# Wait for app to fully load
+Write-Host "[LOAD] Waiting for app to load..."
+Start-Sleep -Seconds 8
+
+# Perform automated interactions
+Write-Host "[AUTO] Starting automated app interactions..."
+Start-Sleep -Seconds 2
+
+# Example interaction patterns - customize these based on your app's UI
+# Tap on screen center (adjust coordinates as needed for your app)
+Write-Host "[TAP] Tapping on screen..."
+& $adbPath shell input tap 640 1280
+Start-Sleep -Seconds 1.5
+
+# Swipe up to navigate/scroll
+Write-Host "[SWIPE] Swiping up..."
+& $adbPath shell input swipe 640 1600 640 800 500
+Start-Sleep -Seconds 1.5
+
+# Tap on different area
+& $adbPath shell input tap 400 800
+Start-Sleep -Seconds 1.5
+
+# Swipe down to go back or navigate
+Write-Host "[SWIPE] Swiping down..."
+& $adbPath shell input swipe 640 800 640 1600 500
+Start-Sleep -Seconds 1.5
+
+# Tap on another element
+& $adbPath shell input tap 800 800
+Start-Sleep -Seconds 2
+
+Write-Host "[AUTO] Automated interactions complete"
+
+# Let app continue running until recording finishes
 Write-Host "[WAIT] Waiting for screen recording to finalize (may take a few seconds)..."
 
 # Wait for the recording process to complete
